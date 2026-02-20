@@ -1,0 +1,17 @@
+PHASE 6 – MERMAID DIAGRAM GENERATION
+
+Goal:
+Generate diagrams in Mermaid syntax.
+
+Logic:
+If query contains:
+- draw
+- flow
+- architecture
+- diagram
+
+Then:
+Prompt LLM → "Generate output strictly in Mermaid syntax."
+
+Frontend:
+Use Mermaid.js to render returned code.

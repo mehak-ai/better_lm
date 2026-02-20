@@ -1,0 +1,26 @@
+PHASE 2 – CHAT SESSION SYSTEM (NotebookLM Style)
+
+Goal:
+Each upload creates a chat session visible in sidebar.
+
+Models:
+
+ChatSession
+- id
+- title
+- created_at
+
+SessionDocument
+- id
+- session (FK)
+- document (FK)
+
+Flow:
+1. User uploads file(s).
+2. Create ChatSession.
+3. Link documents to session.
+4. Generate session title using LLM:
+   - Take first 1000 tokens
+   - Prompt: Generate a short 3–6 word research title.
+5. Store title.
+6. Return session object to frontend.

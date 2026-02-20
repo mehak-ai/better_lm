@@ -1,0 +1,16 @@
+PHASE 3 – RAG RETRIEVAL ENGINE
+
+Goal:
+Query → embed → filtered vector search → LLM → cited answer.
+
+Flow:
+1. Embed user query.
+2. Filter by selected session documents.
+3. Perform cosine similarity Top-K search (K=5).
+4. Send retrieved chunks to LLM (Groq/Ollama).
+5. Return structured JSON:
+   {
+     answer: "...",
+     sources: [{document, chunk_id}]
+   }
+6. Enable streaming responses.

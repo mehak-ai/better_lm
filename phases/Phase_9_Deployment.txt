@@ -1,0 +1,14 @@
+PHASE 9 – DEPLOYMENT
+
+Backend → Railway / Render
+Frontend → Vercel
+Database → Managed PostgreSQL with pgvector
+LLM → Groq API (free tier) or Ollama (local)
+
+Final Testing:
+- Session creation works
+- Auto-title generation works
+- Range-based filtering works
+- Multi-file comparison works
+- Mermaid rendering works
+- Citations accurate

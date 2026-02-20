@@ -1,0 +1,36 @@
+PHASE 1 – BACKEND FOUNDATION
+
+Goal:
+Setup Django backend with PostgreSQL + pgvector.
+
+Steps:
+1. Create single Django app.
+2. Configure PostgreSQL and enable pgvector extension.
+3. Core Models:
+
+Document
+- id
+- title
+- file
+- uploaded_at
+
+Chunk
+- id
+- document (FK)
+- content
+- embedding (vector)
+- page_number
+- chunk_index
+
+4. File Parsing:
+- PDF → PyMuPDF
+- DOCX → python-docx
+- TXT → native read
+
+5. Chunking Strategy:
+- 500–800 tokens
+- 100 overlap
+
+6. Embeddings:
+Model → sentence-transformers/all-MiniLM-L6-v2
+Store vectors in pgvector with cosine index.

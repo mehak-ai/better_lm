@@ -1,0 +1,21 @@
+PHASE 7 – MINIMAL NOTEBOOKLM-STYLE UI (Next.js)
+
+Structure:
+
+frontend/
+  app/
+    page.tsx
+    layout.tsx
+  components/
+    Chat.tsx
+    Sidebar.tsx
+    MermaidRenderer.tsx
+
+Features:
+- Sidebar with chat sessions
+- Auto-generated session names
+- Multi-document selection
+- Optional page range inputs
+- Streaming chat UI
+- Citation popovers
+- Dark theme default

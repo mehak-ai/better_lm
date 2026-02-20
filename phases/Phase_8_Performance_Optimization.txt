@@ -1,0 +1,12 @@
+PHASE 8 – PERFORMANCE OPTIMIZATION
+
+Goal:
+Fast retrieval & processing.
+
+Optimizations:
+- Keep embedding model loaded in memory.
+- Use async Django views.
+- Use cosine similarity index.
+- Filter before vector search (range-based).
+- Optional Redis caching.
+- Stream LLM responses.

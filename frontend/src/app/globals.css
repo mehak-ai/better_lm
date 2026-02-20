@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #0f0f13;
+  --bg-secondary: #16161e;
+  --bg-surface: #1c1c26;
+  --bg-elevated: #222230;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-hover: rgba(255, 255, 255, 0.14);
+  --accent: #7c6af7;
+  --accent-dim: rgba(124, 106, 247, 0.15);
+  --text-primary: #e8e8f0;
+  --text-muted: #6b6b80;
+  --text-dim: #3d3d52;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Thin scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-hover);
+  border-radius: 99px;
+}
+
+/* Custom utilities */
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+.glow-accent {
+  box-shadow: 0 0 20px rgba(124, 106, 247, 0.25),
+    0 0 60px rgba(124, 106, 247, 0.08);
+}
+
+/* Streaming cursor */
+@keyframes blink {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+.streaming-cursor::after {
+  content: '▋';
+  animation: blink 0.8s step-end infinite;
+  color: var(--accent);
+  margin-left: 2px;
+}
+
+/* Mermaid diagram area */
+.mermaid-output svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Citation popover */
+.citation-chip {
+  @apply inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full cursor-pointer transition-all;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid rgba(124, 106, 247, 0.3);
+}
+
+.citation-chip:hover {
+  background: rgba(124, 106, 247, 0.25);
+}
+
+/* Fade-in animation for messages */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.msg-enter {
+  animation: fadeSlideUp 0.25s ease-out forwards;
+}
+
+/* Upload drop zone pulse */
+@keyframes pulse-border {
+
+  0%,
+  100% {
+    border-color: rgba(124, 106, 247, 0.3);
+  }
+
+  50% {
+    border-color: rgba(124, 106, 247, 0.7);
+  }
+}
+
+.drop-zone-active {
+  animation: pulse-border 1.5s ease-in-out infinite;
+}

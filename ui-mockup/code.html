@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Chic Research Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "warm-gray-50": "#F9F9F8",
+                        "warm-gray-100": "#F2F2F0",
+                        "warm-gray-200": "#E5E5E0",
+                        "warm-gray-300": "#D4D4CE",
+                        "charcoal": "#2D2D2A",
+                        "soft-shadow": "rgba(0,0,0,0.04)"
+                    },
+                    fontFamily: {
+                        "sans": ["'Plus Jakarta Sans'", "sans-serif"]
+                    },
+                    borderRadius: {
+                        'xl': '1rem',
+                        '2xl': '1.5rem',
+                        '3xl': '2rem',
+                    }
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                @apply font-sans antialiased text-charcoal bg-warm-gray-50;
+                letter-spacing: 0.025em;
+            }
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-warm-gray-300 rounded-full; }
+        .wide-tracking {
+            letter-spacing: 0.1em;
+        }
+        .soft-card-shadow {
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.05);
+        }
+        .upload-container-shadow {
+            box-shadow: 0 20px 40px -15px rgba(0,0,0,0.08);
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden">
+<div class="flex h-full w-full p-4 gap-4">
+<aside class="w-72 bg-warm-gray-100 rounded-3xl flex flex-col transition-all duration-300 border border-warm-gray-200/50">
+<div class="p-8">
+<div class="flex items-center gap-3 mb-10">
+<div class="w-10 h-10 bg-white flex items-center justify-center rounded-xl shadow-sm">
+<span class="material-symbols-outlined text-charcoal text-xl">temp_preferences_custom</span>
+</div>
+<h1 class="text-sm font-bold tracking-[0.15em] uppercase text-charcoal">Research</h1>
+</div>
+<button class="w-full flex items-center justify-center gap-2 bg-charcoal text-white py-3.5 rounded-2xl font-semibold hover:opacity-90 transition-all shadow-lg shadow-charcoal/10">
+<span class="material-symbols-outlined text-sm">add</span>
+<span class="uppercase text-[10px] tracking-widest font-bold">New Project</span>
+</button>
+</div>
+<div class="flex-1 overflow-y-auto px-6 custom-scrollbar">
+<div class="mb-8">
+<h3 class="text-[10px] font-bold text-warm-gray-400 uppercase tracking-[0.2em] mb-4 px-2">Recent Library</h3>
+<div class="space-y-2">
+<div class="group flex items-center justify-between p-3.5 rounded-2xl bg-white border border-warm-gray-200/50 cursor-pointer hover:border-warm-gray-300 transition-all soft-card-shadow">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-charcoal/40 text-sm">description</span>
+<div class="flex flex-col">
+<span class="text-[11px] font-bold text-charcoal truncate max-w-[130px]">Market_Analysis_Q4.pdf</span>
+<span class="text-[9px] text-warm-gray-400 font-medium">Updated 2h ago</span>
+</div>
+</div>
+</div>
+<div class="group flex items-center justify-between p-3.5 rounded-2xl hover:bg-warm-gray-200/40 border border-transparent cursor-pointer transition-all">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-warm-gray-400 text-sm">description</span>
+<div class="flex flex-col">
+<span class="text-[11px] font-bold text-charcoal/70 truncate max-w-[130px]">User_Feedback.docx</span>
+<span class="text-[9px] text-warm-gray-400 font-medium uppercase">5h ago</span>
+</div>
+</div>
+</div>
+<div class="group flex items-center justify-between p-3.5 rounded-2xl hover:bg-warm-gray-200/40 border border-transparent cursor-pointer transition-all">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-warm-gray-400 text-sm">description</span>
+<div class="flex flex-col">
+<span class="text-[11px] font-bold text-charcoal/70 truncate max-w-[130px]">AI_Trends_2024.pdf</span>
+<span class="text-[9px] text-warm-gray-400 font-medium uppercase">Yesterday</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="mb-8">
+<h3 class="text-[10px] font-bold text-warm-gray-400 uppercase tracking-[0.2em] mb-4 px-2">Navigator</h3>
+<nav class="space-y-1">
+<a class="flex items-center gap-3 p-3 rounded-xl text-warm-gray-500 hover:bg-warm-gray-200/40 hover:text-charcoal transition-all" href="#">
+<span class="material-symbols-outlined text-sm">folder_open</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Shared Files</span>
+</a>
+<a class="flex items-center gap-3 p-3 rounded-xl text-warm-gray-500 hover:bg-warm-gray-200/40 hover:text-charcoal transition-all" href="#">
+<span class="material-symbols-outlined text-sm">auto_awesome</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Insights</span>
+</a>
+</nav>
+</div>
+</div>
+<div class="p-6 mt-auto">
+<div class="bg-white/60 p-5 rounded-3xl mb-6 border border-warm-gray-200/50 backdrop-blur-sm">
+<p class="text-[9px] font-bold text-charcoal mb-1 uppercase tracking-[0.15em]">Membership</p>
+<p class="text-[10px] text-warm-gray-500 mb-3 leading-relaxed font-medium">Unlock premium document processing.</p>
+<button class="w-full py-2.5 text-[10px] font-bold bg-warm-gray-200 text-charcoal rounded-xl uppercase tracking-widest hover:bg-warm-gray-300 transition-colors">Upgrade</button>
+</div>
+<div class="flex items-center gap-3 px-2">
+<div class="w-9 h-9 rounded-full bg-warm-gray-300 flex items-center justify-center border-2 border-white">
+<span class="material-symbols-outlined text-charcoal text-sm">person</span>
+</div>
+<div class="flex flex-col">
+<p class="text-[11px] font-bold text-charcoal tracking-tight">Alex Morgan</p>
+<p class="text-[9px] text-warm-gray-400 font-bold uppercase tracking-tighter">Settings</p>
+</div>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col relative bg-warm-gray-50 rounded-3xl border border-warm-gray-200/50 overflow-hidden">
+<header class="h-20 flex items-center justify-between px-10 bg-white/30 backdrop-blur-md z-10">
+<div class="flex items-center gap-3">
+<span class="text-[10px] font-bold uppercase tracking-widest text-warm-gray-400">Library</span>
+<span class="material-symbols-outlined text-[10px] text-warm-gray-300">chevron_right</span>
+<span class="text-[10px] font-bold uppercase tracking-widest text-charcoal">Initial Upload</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex -space-x-2">
+<div class="w-7 h-7 rounded-full border-2 border-warm-gray-50 bg-warm-gray-100 flex items-center justify-center text-[8px] font-bold text-charcoal">JD</div>
+<div class="w-7 h-7 rounded-full border-2 border-warm-gray-50 bg-charcoal text-white flex items-center justify-center text-[8px] font-bold">AM</div>
+</div>
+<div class="flex items-center gap-4 text-warm-gray-400">
+<span class="material-symbols-outlined text-[20px] cursor-pointer hover:text-charcoal transition-colors">notifications</span>
+<span class="material-symbols-outlined text-[20px] cursor-pointer hover:text-charcoal transition-colors">help_outline</span>
+</div>
+</div>
+</header>
+<div class="flex-1 flex flex-col items-center justify-center p-8 max-w-5xl mx-auto w-full">
+<div class="w-full max-w-xl text-center space-y-12">
+<div class="relative inline-block">
+<div class="relative w-28 h-28 bg-white flex items-center justify-center mx-auto rounded-[2.5rem] upload-container-shadow border border-warm-gray-100">
+<span class="material-symbols-outlined text-charcoal/30 text-5xl">cloud_upload</span>
+</div>
+</div>
+<div class="space-y-4">
+<h2 class="text-3xl font-bold tracking-tight text-charcoal leading-tight">Drop your research here</h2>
+<p class="text-warm-gray-500 text-sm font-medium max-w-sm mx-auto leading-relaxed">
+                        Securely upload PDF, Word or Text documents to begin your deep-dive analysis.
+                    </p>
+</div>
+<div class="flex flex-col gap-8 items-center">
+<button class="flex items-center gap-3 bg-white text-charcoal px-10 py-4 rounded-2xl font-bold text-xs uppercase tracking-[0.2em] hover:bg-warm-gray-100 transition-all border border-warm-gray-200 shadow-sm">
+<span class="material-symbols-outlined text-sm">add_circle</span>
+                        Select Local Files
+                    </button>
+<div class="flex items-center gap-12 text-warm-gray-400 opacity-60">
+<div class="flex flex-col items-center gap-1">
+<span class="material-symbols-outlined text-xl">picture_as_pdf</span>
+<span class="text-[8px] font-bold uppercase tracking-[0.2em]">PDF</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="material-symbols-outlined text-xl">description</span>
+<span class="text-[8px] font-bold uppercase tracking-[0.2em]">DOCX</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="material-symbols-outlined text-xl">article</span>
+<span class="text-[8px] font-bold uppercase tracking-[0.2em]">TXT</span>
+</div>
+</div>
+</div>
+<div class="pt-16 border-t border-warm-gray-200/60 w-full grid grid-cols-3 gap-12">
+<div class="flex flex-col items-center gap-3 opacity-70">
+<div class="w-10 h-10 rounded-xl bg-warm-gray-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-charcoal/60 text-lg">auto_fix</span>
+</div>
+<span class="text-[8px] font-bold uppercase tracking-[0.2em] text-warm-gray-500">Neural Search</span>
+</div>
+<div class="flex flex-col items-center gap-3 opacity-70">
+<div class="w-10 h-10 rounded-xl bg-warm-gray-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-charcoal/60 text-lg">bolt</span>
+</div>
+<span class="text-[8px] font-bold uppercase tracking-[0.2em] text-warm-gray-500">Live Indexing</span>
+</div>
+<div class="flex flex-col items-center gap-3 opacity-70">
+<div class="w-10 h-10 rounded-xl bg-warm-gray-100 flex items-center justify-center">
+<span class="material-symbols-outlined text-charcoal/60 text-lg">verified_user</span>
+</div>
+<span class="text-[8px] font-bold uppercase tracking-[0.2em] text-warm-gray-500">Private Cloud</span>
+</div>
+</div>
+</div>
+</div>
+<div class="px-10 pb-10 w-full max-w-4xl mx-auto">
+<div class="relative bg-white/80 backdrop-blur-md border border-warm-gray-200/60 p-2 rounded-3xl shadow-xl shadow-warm-gray-200/40">
+<div class="flex items-center">
+<button class="p-4 text-warm-gray-300 cursor-not-allowed" disabled="">
+<span class="material-symbols-outlined">attachment</span>
+</button>
+<input class="flex-1 bg-transparent border-none focus:ring-0 text-xs py-4 text-warm-gray-400 font-bold uppercase tracking-widest placeholder-warm-gray-300 cursor-not-allowed" disabled="" placeholder="Choose a document to start a conversation..." type="text"/>
+<button class="bg-warm-gray-100 text-warm-gray-300 p-4 rounded-2xl cursor-not-allowed mx-1" disabled="">
+<span class="material-symbols-outlined text-sm">send</span>
+</button>
+</div>
+</div>
+<p class="text-center text-[8px] text-warm-gray-400 mt-6 uppercase tracking-[0.4em] font-bold opacity-60">
+                System Active • Secure Processing Mode
+            </p>
+</div>
+</main>
+</div>
+
+</body></html>

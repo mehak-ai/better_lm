@@ -1,0 +1,24 @@
+PHASE 4 – RANGE-BASED RETRIEVAL
+
+Goal:
+Efficient multi-file retrieval using page/chunk ranges.
+
+Implementation:
+1. Add page_number and chunk_index to Chunk model.
+2. Allow optional range filters:
+   - page_number BETWEEN X AND Y
+   - chunk_index BETWEEN A AND B
+
+SQL Example:
+
+SELECT *
+FROM chunk
+WHERE document_id IN (...)
+AND page_number BETWEEN X AND Y
+ORDER BY embedding <-> query_embedding
+LIMIT 5;
+
+Benefits:
+- Faster retrieval
+- Reduced noise
+- Better multi-document comparison

@@ -1,0 +1,14 @@
+PHASE 5 – MULTI-FILE INTELLIGENCE
+
+Goal:
+Compare documents and detect relationships.
+
+Flow:
+1. User selects multiple docs in session.
+2. Apply range filters if provided.
+3. Retrieve top chunks from each document.
+4. Send structured comparison prompt:
+   - Agreements
+   - Differences
+   - Supporting evidence
+5. Return structured response with citations.

@@ -78,8 +78,9 @@ export default function Home() {
                 Smart Research Agent
               </h1>
               <p className="text-sm leading-relaxed mb-8" style={{ color: "var(--text-muted)" }}>
-                Upload your research documents and start asking questions. Powered
-                by pgvector semantic search and Groq AI with streaming responses.
+                Create a new session and upload your research documents to start
+                asking questions. Powered by pgvector semantic search and Groq AI
+                with streaming responses.
               </p>
 
               <div className="grid grid-cols-3 gap-4">
@@ -105,7 +106,7 @@ export default function Home() {
               </div>
 
               <p className="text-xs mt-8" style={{ color: "var(--text-dim)" }}>
-                ← Upload a document in the sidebar to begin
+                ← Click &quot;New Session&quot; in the sidebar to begin
               </p>
             </div>
           </div>

@@ -1,11 +1,10 @@
 import { ChatSession, Message, Source } from "./types";
 
-// In the browser, use relative path so Next.js proxy rewrite handles CORS.
-// On the server (SSR), use the full backend URL.
-const BASE =
-    typeof window !== "undefined"
-        ? "/api"
-        : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api");
+// Use relative path on client (browser) to leverage Next.js proxy
+// Use full URL on server
+const BASE = typeof window !== "undefined"
+    ? "/api"
+    : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
 // ---- Sessions ----
 
@@ -25,11 +24,24 @@ export async function deleteSession(id: number): Promise<void> {
     await fetch(`${BASE}/sessions/${id}/`, { method: "DELETE" });
 }
 
+// ---- Create Session ----
+
+export async function createSession(): Promise<ChatSession> {
+    const res = await fetch(`${BASE}/sessions/create/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error("Failed to create session");
+    return res.json();
+}
+
 // ---- Upload ----
 
-export async function uploadFiles(files: File[]): Promise<ChatSession> {
+export async function uploadFiles(files: File[], sessionId?: number): Promise<ChatSession> {
     const form = new FormData();
     files.forEach((f) => form.append("files", f));
+    if (sessionId) form.append("session_id", sessionId.toString());
     const res = await fetch(`${BASE}/upload/`, { method: "POST", body: form });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -99,4 +111,26 @@ export async function streamChat(
             }
         }
     }
+}
+
+// ---- Voice Assistant ----
+
+export async function getDeepgramToken(): Promise<string> {
+    const res = await fetch(`${BASE}/voice/token/`);
+    if (!res.ok) {
+        console.error("Voice token error:", res.status, await res.text());
+        throw new Error("Failed to get voice token");
+    }
+    const data = await res.json();
+    return data.key;
+}
+
+export async function speakText(text: string): Promise<ArrayBuffer> {
+    const res = await fetch(`${BASE}/voice/tts/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+    });
+    if (!res.ok) throw new Error("TTS failed");
+    return res.arrayBuffer();
 }

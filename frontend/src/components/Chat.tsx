@@ -9,8 +9,9 @@ import {
 } from "react";
 import dynamic from "next/dynamic";
 import { ChatSession, Document, Message, Source } from "@/lib/types";
-import { getMessages, streamChat } from "@/lib/api";
+import { getMessages, streamChat, uploadFiles } from "@/lib/api";
 import CitationList from "./CitationList";
+import VoiceAssistant from "./VoiceAssistant";
 
 const MermaidRenderer = dynamic(() => import("./MermaidRenderer"), {
     ssr: false,
@@ -73,22 +74,30 @@ export default function Chat({ session }: Props) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
+    // Initialize sessionDocs from prop
+    const [sessionDocs, setSessionDocs] = useState<Document[]>(session.documents);
     const [selectedDocs, setSelectedDocs] = useState<number[]>([]);
     const [pageStart, setPageStart] = useState<string>("");
     const [pageEnd, setPageEnd] = useState<string>("");
     const [showDocPanel, setShowDocPanel] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+    const [speakingMsgIdx, setSpeakingMsgIdx] = useState<number | null>(null);
+    const [showVoice, setShowVoice] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const recognitionRef = useRef<any>(null);
 
     // Load history
     useEffect(() => {
         setMessages([]);
+        setSessionDocs(session.documents);
         setSelectedDocs(session.documents.map((d) => d.id));
         getMessages(session.id)
             .then(setMessages)
             .catch(console.error);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [session.id]);  // session.id is the stable key; session.documents are set once on load
+    }, [session.id]);
 
     // Scroll to bottom on new messages
     useEffect(() => {
@@ -103,11 +112,145 @@ export default function Chat({ session }: Props) {
         }
     }, [input]);
 
+    // Show doc panel momentarily on new uploads
+    const prevDocCount = useRef(session.documents.length);
+    useEffect(() => {
+        if (sessionDocs.length > prevDocCount.current) {
+            setShowDocPanel(true);
+            const t = setTimeout(() => setShowDocPanel(false), 2500);
+            return () => clearTimeout(t);
+        }
+        prevDocCount.current = sessionDocs.length;
+    }, [sessionDocs]);
+
+    // ---- Voice: Speech-to-Text ----
+    const toggleListening = useCallback(() => {
+        // Check browser support
+        const SpeechRecognition =
+            (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Speech recognition is not supported in this browser. Try Chrome.");
+            return;
+        }
+
+        if (isListening && recognitionRef.current) {
+            recognitionRef.current.stop();
+            setIsListening(false);
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = "en-US";
+        recognition.interimResults = true;
+        recognition.continuous = true;
+        recognitionRef.current = recognition;
+
+        let finalTranscript = input; // Append to existing input
+
+        recognition.onresult = (event: any) => {
+            let interim = "";
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalTranscript += (finalTranscript ? " " : "") + transcript;
+                } else {
+                    interim = transcript;
+                }
+            }
+            setInput(finalTranscript + (interim ? " " + interim : ""));
+        };
+
+        recognition.onerror = (event: any) => {
+            console.error("Speech recognition error:", event.error);
+            setIsListening(false);
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+            recognitionRef.current = null;
+        };
+
+        recognition.start();
+        setIsListening(true);
+    }, [isListening, input]);
+
+    // Cleanup speech recognition on unmount
+    useEffect(() => {
+        return () => {
+            if (recognitionRef.current) {
+                recognitionRef.current.stop();
+            }
+            window.speechSynthesis?.cancel();
+        };
+    }, []);
+
+    // ---- Voice: Text-to-Speech ----
+    const handleSpeak = useCallback((text: string, msgIdx: number) => {
+        const synth = window.speechSynthesis;
+        if (!synth) {
+            alert("Text-to-speech is not supported in this browser.");
+            return;
+        }
+
+        // If already speaking this message, stop
+        if (speakingMsgIdx === msgIdx) {
+            synth.cancel();
+            setSpeakingMsgIdx(null);
+            return;
+        }
+
+        // Cancel any current speech
+        synth.cancel();
+
+        // Clean text (remove mermaid code, markdown artifacts)
+        const cleanText = text
+            .replace(/```[\s\S]*?```/g, "")
+            .replace(/[#*_`]/g, "")
+            .trim();
+
+        if (!cleanText) return;
+
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.onend = () => setSpeakingMsgIdx(null);
+        utterance.onerror = () => setSpeakingMsgIdx(null);
+
+        setSpeakingMsgIdx(msgIdx);
+        synth.speak(utterance);
+    }, [speakingMsgIdx]);
+
     const toggleDoc = useCallback((id: number) => {
         setSelectedDocs((prev) =>
             prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
         );
     }, []);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files?.length) return;
+
+        try {
+            setLoading(true);
+            const updatedSession = await uploadFiles(
+                Array.from(e.target.files),
+                session.id
+            );
+
+            // Update local state
+            setSessionDocs(updatedSession.documents);
+
+            // Add new docs to selected
+            const newDocIds = updatedSession.documents.map((d: any) => d.id);
+            setSelectedDocs(newDocIds);
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed to upload files");
+        } finally {
+            setLoading(false);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+        }
+    };
 
     const handleSend = useCallback(async () => {
         const q = input.trim();
@@ -190,8 +333,8 @@ export default function Chat({ session }: Props) {
     };
 
     const allSelected = useMemo(
-        () => session.documents.every((d) => selectedDocs.includes(d.id)),
-        [session.documents, selectedDocs]
+        () => sessionDocs.every((d) => selectedDocs.includes(d.id)),
+        [sessionDocs, selectedDocs]
     );
 
     return (
@@ -206,25 +349,45 @@ export default function Chat({ session }: Props) {
                         {session.title}
                     </h1>
                     <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-                        {session.documents.length} document{session.documents.length !== 1 ? "s" : ""} · {selectedDocs.length} selected
+                        {sessionDocs.length} document{sessionDocs.length !== 1 ? "s" : ""} · {selectedDocs.length} selected
                     </p>
                 </div>
 
-                <button
-                    onClick={() => setShowDocPanel(!showDocPanel)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
-                    style={{
-                        background: showDocPanel ? "var(--accent-dim)" : "var(--bg-elevated)",
-                        color: showDocPanel ? "var(--accent)" : "var(--text-muted)",
-                        border: `1px solid ${showDocPanel ? "rgba(124,106,247,0.3)" : "var(--border)"}`,
-                    }}
-                >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M9 12h6M9 16h6M7 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2h-2" />
-                        <rect x="7" y="1" width="10" height="4" rx="1" />
-                    </svg>
-                    Documents
-                </button>
+                <div className="flex items-center gap-2">
+                    {/* Voice Assistant Button */}
+                    <button
+                        onClick={() => setShowVoice(true)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                        style={{
+                            background: "var(--bg-elevated)",
+                            color: "var(--text-muted)",
+                            border: "1px solid var(--border)",
+                        }}
+                        title="Voice conversation"
+                    >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                            <path d="M19 10v2a7 7 0 01-14 0v-2" />
+                        </svg>
+                        Voice
+                    </button>
+
+                    <button
+                        onClick={() => setShowDocPanel(!showDocPanel)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                        style={{
+                            background: showDocPanel ? "var(--accent-dim)" : "var(--bg-elevated)",
+                            color: showDocPanel ? "var(--accent)" : "var(--text-muted)",
+                            border: `1px solid ${showDocPanel ? "rgba(124,106,247,0.3)" : "var(--border)"}`,
+                        }}
+                    >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M9 12h6M9 16h6M7 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2h-2" />
+                            <rect x="7" y="1" width="10" height="4" rx="1" />
+                        </svg>
+                        Documents
+                    </button>
+                </div>
             </header>
 
             <div className="flex flex-1 overflow-hidden">
@@ -233,41 +396,78 @@ export default function Chat({ session }: Props) {
                     <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
                         {messages.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full text-center py-16">
-                                <div
-                                    className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-                                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
-                                >
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
-                                        style={{ color: "var(--accent)" }}>
-                                        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-                                    </svg>
-                                </div>
-                                <h2 className="font-bold text-base mb-2" style={{ color: "var(--text-primary)" }}>
-                                    Ready to research
-                                </h2>
-                                <p className="text-xs max-w-xs" style={{ color: "var(--text-muted)" }}>
-                                    Ask questions, compare documents, or request a diagram. Try: <em>&quot;draw a flow diagram of…&quot;</em>
-                                </p>
-                                <div className="flex gap-2 mt-6 flex-wrap justify-center">
-                                    {[
-                                        "Summarize the key findings",
-                                        "Compare both documents",
-                                        "Draw a diagram of the architecture",
-                                    ].map((hint) => (
-                                        <button
-                                            key={hint}
-                                            onClick={() => setInput(hint)}
-                                            className="text-xs px-3 py-2 rounded-xl transition-all"
-                                            style={{
-                                                background: "var(--bg-elevated)",
-                                                color: "var(--text-muted)",
-                                                border: "1px solid var(--border)",
-                                            }}
+                                {sessionDocs.length === 0 ? (
+                                    /* No documents yet — prompt upload */
+                                    <>
+                                        <div
+                                            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                                            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
                                         >
-                                            {hint}
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+                                                style={{ color: "var(--accent)" }}>
+                                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                                                <path d="M14 2v6h6" />
+                                                <path d="M12 18v-6" />
+                                                <path d="M9 15l3-3 3 3" />
+                                            </svg>
+                                        </div>
+                                        <h2 className="font-bold text-base mb-2" style={{ color: "var(--text-primary)" }}>
+                                            Upload documents to get started
+                                        </h2>
+                                        <p className="text-xs max-w-xs mb-6" style={{ color: "var(--text-muted)" }}>
+                                            Use the <strong>+</strong> button below to upload PDFs, DOCX, or TXT files to this session.
+                                        </p>
+                                        <button
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all hover:opacity-90"
+                                            style={{ background: "var(--accent)", color: "white" }}
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                                <path d="M12 5v14M5 12h14" />
+                                            </svg>
+                                            Upload Documents
                                         </button>
-                                    ))}
-                                </div>
+                                    </>
+                                ) : (
+                                    /* Has documents — ready to chat */
+                                    <>
+                                        <div
+                                            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                                            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)" }}
+                                        >
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+                                                style={{ color: "var(--accent)" }}>
+                                                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                                            </svg>
+                                        </div>
+                                        <h2 className="font-bold text-base mb-2" style={{ color: "var(--text-primary)" }}>
+                                            Ready to research
+                                        </h2>
+                                        <p className="text-xs max-w-xs" style={{ color: "var(--text-muted)" }}>
+                                            Ask questions, compare documents, or request a diagram. Try: <em>&quot;draw a flow diagram of…&quot;</em>
+                                        </p>
+                                        <div className="flex gap-2 mt-6 flex-wrap justify-center">
+                                            {[
+                                                "Summarize the key findings",
+                                                "Compare both documents",
+                                                "Draw a diagram of the architecture",
+                                            ].map((hint) => (
+                                                <button
+                                                    key={hint}
+                                                    onClick={() => setInput(hint)}
+                                                    className="text-xs px-3 py-2 rounded-xl transition-all"
+                                                    style={{
+                                                        background: "var(--bg-elevated)",
+                                                        color: "var(--text-muted)",
+                                                        border: "1px solid var(--border)",
+                                                    }}
+                                                >
+                                                    {hint}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         )}
 
@@ -318,8 +518,34 @@ export default function Chat({ session }: Props) {
                                         />
                                     </div>
 
+                                    {/* TTS + Citations for assistant messages */}
                                     {!msg.streaming && msg.role === "assistant" && (
-                                        <CitationList sources={msg.sources} />
+                                        <div className="flex items-center gap-2 mt-1.5">
+                                            <button
+                                                onClick={() => handleSpeak(msg.content, i)}
+                                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold transition-all hover:bg-[var(--bg-elevated)]"
+                                                style={{
+                                                    color: speakingMsgIdx === i ? "var(--accent)" : "var(--text-dim)",
+                                                    border: `1px solid ${speakingMsgIdx === i ? "rgba(124,106,247,0.4)" : "transparent"}`,
+                                                }}
+                                                title={speakingMsgIdx === i ? "Stop speaking" : "Read aloud"}
+                                            >
+                                                {speakingMsgIdx === i ? (
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                                        <rect x="6" y="4" width="4" height="16" rx="1" />
+                                                        <rect x="14" y="4" width="4" height="16" rx="1" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                                                        <path d="M15.54 8.46a5 5 0 010 7.07" />
+                                                        <path d="M19.07 4.93a10 10 0 010 14.14" />
+                                                    </svg>
+                                                )}
+                                                {speakingMsgIdx === i ? "Stop" : "Listen"}
+                                            </button>
+                                            <CitationList sources={msg.sources} />
+                                        </div>
                                     )}
                                 </div>
 
@@ -386,6 +612,29 @@ export default function Chat({ session }: Props) {
                                 border: "1px solid var(--border-hover)",
                             }}
                         >
+                            <input
+                                type="file"
+                                multiple
+                                ref={fileInputRef}
+                                className="hidden"
+                                onChange={handleFileUpload}
+                                accept=".pdf,.docx,.txt"
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={loading}
+                                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all hover:bg-[var(--bg-elevated)]"
+                                style={{
+                                    color: "var(--text-dim)",
+                                    border: "1px solid var(--border)",
+                                }}
+                                title="Add files"
+                            >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M12 5v14M5 12h14" />
+                                </svg>
+                            </button>
+
                             <textarea
                                 ref={textareaRef}
                                 value={input}
@@ -397,6 +646,36 @@ export default function Chat({ session }: Props) {
                                 className="flex-1 resize-none bg-transparent outline-none text-sm leading-relaxed"
                                 style={{ color: "var(--text-primary)", maxHeight: "160px" }}
                             />
+
+                            {/* Mic button */}
+                            <button
+                                onClick={toggleListening}
+                                disabled={loading}
+                                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all"
+                                style={{
+                                    background: isListening ? "rgba(239,68,68,0.15)" : "transparent",
+                                    color: isListening ? "#ef4444" : "var(--text-dim)",
+                                    border: `1px solid ${isListening ? "rgba(239,68,68,0.4)" : "var(--border)"}`,
+                                    animation: isListening ? "pulse 1.5s ease-in-out infinite" : "none",
+                                }}
+                                title={isListening ? "Stop listening" : "Voice input"}
+                            >
+                                {isListening ? (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                                        <rect x="6" y="4" width="4" height="16" rx="1" />
+                                        <rect x="14" y="4" width="4" height="16" rx="1" />
+                                    </svg>
+                                ) : (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                                        <path d="M19 10v2a7 7 0 01-14 0v-2" />
+                                        <line x1="12" y1="19" x2="12" y2="23" />
+                                        <line x1="8" y1="23" x2="16" y2="23" />
+                                    </svg>
+                                )}
+                            </button>
+
+                            {/* Send button */}
                             <button
                                 onClick={handleSend}
                                 disabled={!input.trim() || loading}
@@ -437,7 +716,7 @@ export default function Chat({ session }: Props) {
                             <button
                                 onClick={() =>
                                     setSelectedDocs(
-                                        allSelected ? [] : session.documents.map((d) => d.id)
+                                        allSelected ? [] : sessionDocs.map((d) => d.id)
                                     )
                                 }
                                 className="text-xs mt-1 font-semibold"
@@ -447,7 +726,7 @@ export default function Chat({ session }: Props) {
                             </button>
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                            {session.documents.map((doc: Document) => {
+                            {sessionDocs.map((doc: Document) => {
                                 const selected = selectedDocs.includes(doc.id);
                                 return (
                                     <div
@@ -487,6 +766,15 @@ export default function Chat({ session }: Props) {
                     </aside>
                 )}
             </div>
+
+            {/* Voice Assistant Overlay */}
+            {showVoice && (
+                <VoiceAssistant
+                    sessionId={session.id}
+                    documentIds={selectedDocs}
+                    onClose={() => setShowVoice(false)}
+                />
+            )}
         </div>
     );
 }

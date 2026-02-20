@@ -122,3 +122,31 @@ body {
 .drop-zone-active {
   animation: pulse-border 1.5s ease-in-out infinite;
 }
+
+/* Voice mic pulse animation */
+@keyframes pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+/* Voice assistant large button pulse */
+@keyframes voice-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 currentColor;
+    transform: scale(1);
+  }
+
+  50% {
+    box-shadow: 0 0 0 16px transparent;
+    transform: scale(1.05);
+  }
+}

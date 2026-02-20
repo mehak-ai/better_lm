@@ -3,15 +3,19 @@ views.py — API views for the Smart Research Agent.
 
 Endpoints:
   POST /api/upload/                → ingest documents, create session
+  POST /api/sessions/create/       → create empty session
   GET  /api/sessions/              → list all chat sessions
   GET  /api/sessions/<id>/         → session detail + documents
   POST /api/sessions/<id>/chat/    → streaming RAG chat (SSE)
   GET  /api/sessions/<id>/messages/→ message history
   DELETE /api/sessions/<id>/       → delete session
+  GET  /api/voice/token/           → Deepgram API key for client STT
+  POST /api/voice/tts/             → Deepgram TTS proxy (returns audio)
 """
 
 import json
 import logging
+import hashlib
 
 from django.http import StreamingHttpResponse, JsonResponse
 from django.views import View
@@ -25,10 +29,9 @@ from rest_framework import status
 from .models import Document, ChatSession, SessionDocument, Message
 from .services import (
     IngestionService,
-    RetrievalService,
+    CustomRetriever,
     IntentRouter,
-    LLMService,
-    PromptBuilder,
+    RAGService,
     TitleService,
 )
 
@@ -54,6 +57,18 @@ def session_to_dict(s: ChatSession) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Create Empty Session
+# ---------------------------------------------------------------------------
+
+@method_decorator(csrf_exempt, name="dispatch")
+class CreateSessionView(APIView):
+    def post(self, request):
+        title = request.data.get("title", "New Research Session")
+        session = ChatSession.objects.create(title=title)
+        return Response(session_to_dict(session), status=201)
+
+
+# ---------------------------------------------------------------------------
 # Upload & Session Creation
 # ---------------------------------------------------------------------------
 
@@ -63,8 +78,12 @@ class UploadView(APIView):
 
     def post(self, request):
         files = request.FILES.getlist("files")
+        session_id = request.data.get("session_id")
+        
         if not files:
             return Response({"error": "No files provided."}, status=400)
+
+        import hashlib
 
         documents = []
         for f in files:
@@ -72,40 +91,64 @@ class UploadView(APIView):
             if ext not in ALLOWED_TYPES:
                 return Response({"error": f"Unsupported file type: {ext}"}, status=400)
 
-            doc = Document.objects.create(
-                title=f.name,
-                file=f,
-                file_type=ext,
-            )
-            try:
-                chunk_count = IngestionService.ingest(doc)
-                logger.info("Ingested %d chunks for doc %d", chunk_count, doc.id)
-            except Exception as e:
-                doc.delete()
-                logger.error("Ingestion failed for %s: %s", f.name, e)
-                return Response({"error": f"Ingestion failed: {e}"}, status=500)
+            # Calculate hash
+            hasher = hashlib.sha256()
+            for chunk in f.chunks():
+                hasher.update(chunk)
+            file_hash = hasher.hexdigest()
+            f.seek(0)  # Reset file pointer
+
+            # Check for existing document
+            doc = Document.objects.filter(file_hash=file_hash).first()
+            
+            if not doc:
+                doc = Document.objects.create(
+                    title=f.name,
+                    file=f,
+                    file_type=ext,
+                    file_hash=file_hash
+                )
+                try:
+                    chunk_count = IngestionService.ingest(doc)
+                    logger.info("Ingested %d chunks for doc %d", chunk_count, doc.id)
+                except Exception as e:
+                    doc.delete()
+                    logger.error("Ingestion failed for %s: %s", f.name, e)
+                    return Response({"error": f"Ingestion failed: {e}"}, status=500)
+            else:
+                 logger.info("Document already exists: %s", doc.title)
 
             documents.append(doc)
 
-        # Create ChatSession
-        session = ChatSession.objects.create(title="Generating title…")
-        for doc in documents:
-            SessionDocument.objects.create(session=session, document=doc)
+        # Get or Create Session
+        if session_id:
+            try:
+                session = ChatSession.objects.get(pk=session_id)
+            except ChatSession.DoesNotExist:
+                 return Response({"error": "Session not found."}, status=404)
+        else:
+            session = ChatSession.objects.create(title="Generating title…")
 
-        # Auto-generate title from first document
-        try:
-            from .models import Chunk
-            first_chunks = (
-                Chunk.objects.filter(document=documents[0])
-                .order_by("chunk_index")[:6]
-            )
-            preview_text = " ".join(c.content for c in first_chunks)
-            session.title = TitleService.generate(preview_text)
-            session.save(update_fields=["title"])
-        except Exception as e:
-            logger.warning("Title generation failed: %s", e)
-            session.title = documents[0].title.rsplit(".", 1)[0]
-            session.save(update_fields=["title"])
+        # Link documents to session
+        for doc in documents:
+            SessionDocument.objects.get_or_create(session=session, document=doc)
+
+        # Update title if it's a new session
+        if not session_id:
+             # Auto-generate title from first document
+            try:
+                from .models import Chunk
+                first_chunks = (
+                    Chunk.objects.filter(document=documents[0])
+                    .order_by("chunk_index")[:6]
+                )
+                preview_text = " ".join(c.content for c in first_chunks)
+                session.title = TitleService.generate(preview_text)
+                session.save(update_fields=["title"])
+            except Exception as e:
+                logger.warning("Title generation failed: %s", e)
+                session.title = documents[0].title.rsplit(".", 1)[0]
+                session.save(update_fields=["title"])
 
         return Response(session_to_dict(session), status=201)
 
@@ -212,31 +255,40 @@ class ChatView(View):
                 intent = IntentRouter.classify(query)
 
                 # 2. Retrieve relevant chunks
-                chunks = RetrievalService.retrieve(
+                chunks_data = CustomRetriever.retrieve_documents(
                     query=query,
                     document_ids=document_ids,
                 )
 
-                if not chunks:
+                if not chunks_data:
                     yield _sse({"type": "token", "content": "No relevant content found for your query."})
                     yield _sse({"type": "done", "sources": [], "intent": intent})
                     return
 
-                # 3. Build prompt per intent
-                if intent == "mermaid":
-                    system, user_prompt = PromptBuilder.mermaid_prompt(query, chunks)
-                elif intent == "compare":
-                    system, user_prompt = PromptBuilder.compare_prompt(query, chunks)
-                else:
-                    system, user_prompt = PromptBuilder.rag_prompt(query, chunks)
+                # Convert to LC docs
+                lc_docs = CustomRetriever.to_langchain_docs(chunks_data)
 
-                # 4. Stream LLM response
+                # 3. Stream LLM response
+                # Fetch recent history (last 6 messages, excluding current one)
+                history_qs = Message.objects.filter(session=session).order_by("-created_at")[:6]
+                history = []
+                for m in reversed(history_qs):
+                    if m.content:  # Skip empty messages
+                        role = "user" if m.role == "user" else "assistant"
+                        history.append({"role": role, "content": m.content})
+                
+                # Remove the very last message (which is the current query we just saved)
+                if history and history[-1]["role"] == "user" and history[-1]["content"] == query:
+                    history.pop()
+
                 full_response = []
-                for token in LLMService.stream(system, user_prompt):
+                stream = RAGService.stream_response(query, lc_docs, intent, history=history)
+                
+                for token in stream:
                     full_response.append(token)
                     yield _sse({"type": "token", "content": token})
 
-                # 5. Build citations
+                # 4. Build citations
                 sources = [
                     {
                         "chunk_id": c["chunk_id"],
@@ -246,10 +298,10 @@ class ChatView(View):
                         "score": round(float(c["score"]), 4),
                         "excerpt": c["content"][:200],
                     }
-                    for c in chunks
+                    for c in chunks_data
                 ]
 
-                # 6. Persist assistant message
+                # 5. Persist assistant message
                 Message.objects.create(
                     session=session,
                     role="assistant",
@@ -272,3 +324,76 @@ class ChatView(View):
 
 def _sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
+
+
+# ---------------------------------------------------------------------------
+# Voice Assistant (Deepgram)
+# ---------------------------------------------------------------------------
+
+@method_decorator(csrf_exempt, name="dispatch")
+class VoiceTokenView(APIView):
+    """GET /api/voice/token/ — return Deepgram API key for client-side STT."""
+
+    def get(self, request):
+        from django.conf import settings
+        key = settings.DEEPGRAM_API_KEY
+        if not key:
+            return Response(
+                {"error": "DEEPGRAM_API_KEY not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return Response({"key": key})
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class VoiceTTSView(APIView):
+    """
+    POST /api/voice/tts/
+    Body (JSON): { "text": "Hello world" }
+    Returns: audio/mpeg stream from Deepgram TTS.
+    """
+
+    def post(self, request):
+        import httpx
+        from django.conf import settings
+
+        text = request.data.get("text", "").strip()
+        if not text:
+            return Response({"error": "text is required."}, status=400)
+
+        key = settings.DEEPGRAM_API_KEY
+        if not key:
+            return Response(
+                {"error": "DEEPGRAM_API_KEY not configured."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        try:
+            resp = httpx.post(
+                "https://api.deepgram.com/v1/speak?model=aura-asteria-en",
+                headers={
+                    "Authorization": f"Token {key}",
+                    "Content-Type": "application/json",
+                },
+                json={"text": text},
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+
+            response = StreamingHttpResponse(
+                resp.iter_bytes(4096),
+                content_type=resp.headers.get("content-type", "audio/mpeg"),
+            )
+            response["Content-Disposition"] = "inline"
+            return response
+
+        except httpx.HTTPStatusError as e:
+            logger.error("Deepgram TTS error: %s", e)
+            return Response(
+                {"error": f"Deepgram TTS failed: {e.response.status_code}"},
+                status=502,
+            )
+        except Exception as e:
+            logger.error("Deepgram TTS error: %s", e, exc_info=True)
+            return Response({"error": str(e)}, status=500)
+

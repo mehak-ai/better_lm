@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { ChatSession } from "@/lib/types";
-import { uploadFiles, deleteSession } from "@/lib/api";
+import { createSession, deleteSession } from "@/lib/api";
 
 interface Props {
     sessions: ChatSession[];
@@ -19,37 +19,20 @@ export default function Sidebar({
     onNewSession,
     onDelete,
 }: Props) {
-    const [uploading, setUploading] = useState(false);
-    const [dragOver, setDragOver] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [creating, setCreating] = useState(false);
 
-    const handleFiles = useCallback(
-        async (files: File[]) => {
-            if (!files.length) return;
-            setUploading(true);
-            setError(null);
-            try {
-                const session = await uploadFiles(files);
-                onNewSession(session);
-            } catch (e: unknown) {
-                setError(e instanceof Error ? e.message : "Upload failed");
-            } finally {
-                setUploading(false);
-            }
-        },
-        [onNewSession]
-    );
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) handleFiles(Array.from(e.target.files));
-        e.target.value = "";
-    };
-
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        setDragOver(false);
-        if (e.dataTransfer.files) handleFiles(Array.from(e.dataTransfer.files));
-    };
+    const handleNewSession = useCallback(async () => {
+        if (creating) return;
+        setCreating(true);
+        try {
+            const session = await createSession();
+            onNewSession(session);
+        } catch (e: unknown) {
+            console.error("Failed to create session:", e);
+        } finally {
+            setCreating(false);
+        }
+    }, [creating, onNewSession]);
 
     const handleDelete = async (e: React.MouseEvent, id: number) => {
         e.stopPropagation();
@@ -87,43 +70,29 @@ export default function Sidebar({
                     </span>
                 </div>
 
-                {/* Upload Button */}
-                <label
-                    className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-xs font-bold uppercase tracking-widest cursor-pointer transition-all ${uploading ? "opacity-60 cursor-wait" : "hover:opacity-90"
-                        } ${dragOver ? "drop-zone-active" : ""}`}
+                {/* New Session Button */}
+                <button
+                    onClick={handleNewSession}
+                    disabled={creating}
+                    className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-xs font-bold uppercase tracking-widest cursor-pointer transition-all ${creating ? "opacity-60 cursor-wait" : "hover:opacity-90"}`}
                     style={{ background: "var(--accent)", color: "white" }}
-                    onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={handleDrop}
                 >
-                    <input
-                        type="file"
-                        multiple
-                        accept=".pdf,.docx,.txt"
-                        className="hidden"
-                        onChange={handleInputChange}
-                        disabled={uploading}
-                    />
-                    {uploading ? (
+                    {creating ? (
                         <>
                             <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
                             </svg>
-                            Processing…
+                            Creating…
                         </>
                     ) : (
                         <>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                <path d="M12 5v14M5 12l7-7 7 7" />
+                                <path d="M12 5v14M5 12h14" />
                             </svg>
-                            Upload Document
+                            New Session
                         </>
                     )}
-                </label>
-
-                {error && (
-                    <p className="mt-2 text-xs text-red-400 text-center">{error}</p>
-                )}
+                </button>
             </div>
 
             {/* Sessions */}
@@ -144,7 +113,7 @@ export default function Sidebar({
                             </svg>
                         </div>
                         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                            Upload a document to start
+                            Create a new session to start
                         </p>
                     </div>
                 ) : (

@@ -9,6 +9,7 @@ class Document(models.Model):
     publication_date = models.DateField(null=True, blank=True)
     file = models.FileField(upload_to="documents/")
     file_type = models.CharField(max_length=10)  # pdf | docx | txt
+    file_hash = models.CharField(max_length=64, unique=True, null=True, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     total_pages = models.IntegerField(default=0)
 

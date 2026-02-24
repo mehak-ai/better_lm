@@ -1,19 +1,30 @@
-django>=4.2,<5.0
-djangorestframework>=3.14
-django-cors-headers>=4.0
+# ── Web framework ──────────────────────────────────────────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# ── Database ────────────────────────────────────────────────────────
+sqlalchemy>=2.0.0
 psycopg2-binary>=2.9
 pgvector>=0.2.4
+
+# ── AI / LangChain ─────────────────────────────────────────────────
 sentence-transformers>=2.2.2
+langchain==0.3.25
+langchain-core==0.3.59
+langchain-community==0.3.24
+langchain-text-splitters==0.3.8
+langchain-huggingface==0.1.2
+langchain-groq==0.3.2
+langsmith==0.3.45
+
+# ── Document parsing ────────────────────────────────────────────────
 pymupdf>=1.23.0
 python-docx>=1.1.0
+
+# ── Networking / Utils ──────────────────────────────────────────────
 groq>=0.4.0
 httpx>=0.25.0
 python-dotenv>=1.0.0
-gunicorn>=21.0
-langchain>=0.1.0
-langchain-core>=0.1.0
-langchain-community>=0.0.10
-langchain-text-splitters>=0.0.1
-langchain-huggingface>=0.0.1
-langchain-groq>=0.0.1
 numpy>=1.24.0
+requests>=2.31.0

@@ -47,4 +47,13 @@ DEEPGRAM_API_KEY     = os.getenv("DEEPGRAM_API_KEY", "")
 # -------------------------------------------------------------------
 # CORS
 # -------------------------------------------------------------------
-CORS_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+_default_origins = ",".join([
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "https://frontend-seven-green-20.vercel.app",
+])
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", _default_origins).split(",")
+    if origin.strip()
+]

@@ -43,7 +43,6 @@ class Chunk(Base):
     chunk_index  = Column(Integer, default=0)
     global_index = Column(Integer, unique=True, nullable=True)
     chunk_type   = Column(String(20), default="paragraph")  # heading|paragraph|table|image|caption
-    chunk_meta   = Column(JSON, default=dict)               # rich structural metadata
 
     document = relationship("Document", back_populates="chunks")
 

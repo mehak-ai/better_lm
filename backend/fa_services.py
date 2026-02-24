@@ -57,15 +57,13 @@ class EmbeddingService:
 
 class _RawChunk:
     """Intermediate chunk before embedding."""
-    __slots__ = ("text", "page_number", "chunk_type", "section_heading", "meta")
+    __slots__ = ("text", "page_number", "chunk_type", "section_heading")
 
-    def __init__(self, text: str, page_number: int, chunk_type: str,
-                 section_heading: str = "", meta: dict = None):
+    def __init__(self, text: str, page_number: int, chunk_type: str, section_heading: str = ""):
         self.text = text.strip()
         self.page_number = page_number
         self.chunk_type = chunk_type          # heading | paragraph | table | image | caption
         self.section_heading = section_heading
-        self.meta = meta or {}               # rich structural metadata
 
 
 class SemanticChunker:
@@ -88,8 +86,6 @@ class SemanticChunker:
         import fitz  # PyMuPDF
 
         doc = fitz.open(file_path)
-        page_width  = doc[0].rect.width  if len(doc) else 0
-        page_height = doc[0].rect.height if len(doc) else 0
         raw: List[_RawChunk] = []
 
         for page_num, page in enumerate(doc, start=1):
@@ -99,25 +95,15 @@ class SemanticChunker:
                 tables = page.find_tables()
                 for tbl in tables.tables:
                     table_rects.append(tbl.bbox)
-                    rows_data = tbl.extract()
-                    n_rows = len(rows_data)
-                    n_cols = len(rows_data[0]) if rows_data else 0
+
+                    # render the table as text
                     rows = []
-                    for row in rows_data:
+                    for row in tbl.extract():
                         cells = [str(c or "").strip() for c in row]
                         rows.append(" | ".join(cells))
                     table_text = "\n".join(rows)
                     if len(table_text) >= cls.MIN_CHARS:
-                        raw.append(_RawChunk(
-                            table_text, page_num, "table",
-                            meta={
-                                "rows": n_rows,
-                                "cols": n_cols,
-                                "bbox": list(tbl.bbox),
-                                "page_width":  round(page_width, 1),
-                                "page_height": round(page_height, 1),
-                            }
-                        ))
+                        raw.append(_RawChunk(table_text, page_num, "table"))
             except Exception:
                 pass  # PyMuPDF versions without find_tables()
 
@@ -138,14 +124,7 @@ class SemanticChunker:
             for b in blocks:
                 if b["type"] == 1:
                     # Image block
-                    raw.append(_RawChunk(
-                        "[Image]", page_num, "image",
-                        meta={
-                            "bbox": list(b["bbox"]),
-                            "page_width":  round(page_width, 1),
-                            "page_height": round(page_height, 1),
-                        }
-                    ))
+                    raw.append(_RawChunk("[Image]", page_num, "image"))
                     continue
 
                 if b["type"] != 0:
@@ -179,17 +158,7 @@ class SemanticChunker:
                 # Classify
                 is_heading = (max_size >= heading_threshold) or is_bold_block
                 chunk_type = "heading" if is_heading else "paragraph"
-                raw.append(_RawChunk(
-                    block_text, page_num, chunk_type,
-                    meta={
-                        "bbox":          [round(v, 1) for v in b["bbox"]],
-                        "font_size":     round(max_size, 1),
-                        "avg_font_size": round(avg_size, 1),
-                        "is_bold":       is_bold_block,
-                        "page_width":    round(page_width, 1),
-                        "page_height":   round(page_height, 1),
-                    }
-                ))
+                raw.append(_RawChunk(block_text, page_num, chunk_type))
 
         doc.close()
         return cls._merge(raw)
@@ -197,53 +166,32 @@ class SemanticChunker:
     # ------------------------------------------------------------------ DOCX
     @classmethod
     def from_docx(cls, file_path: str) -> List[_RawChunk]:
-        import docx as _docx
+        import docx
 
-        document = _docx.Document(file_path)
+        document = docx.Document(file_path)
         raw: List[_RawChunk] = []
 
         for para in document.paragraphs:
             text = para.text.replace("\x00", "").strip()
             if not text or len(text) < cls.MIN_CHARS:
                 continue
-            style_name = para.style.name or ""
-            style_lower = style_name.lower()
-            if "heading" in style_lower:
+            style = (para.style.name or "").lower()
+            if "heading" in style:
                 chunk_type = "heading"
-                # extract heading level (e.g. "Heading 2" → 2)
-                try:
-                    heading_level = int(style_name.split()[-1])
-                except (ValueError, IndexError):
-                    heading_level = 1
-            elif "caption" in style_lower:
+            elif "caption" in style:
                 chunk_type = "caption"
-                heading_level = 0
             else:
                 chunk_type = "paragraph"
-                heading_level = 0
-            raw.append(_RawChunk(
-                text, 1, chunk_type,
-                meta={
-                    "style":         style_name,
-                    "heading_level": heading_level,
-                }
-            ))
+            raw.append(_RawChunk(text, 1, chunk_type))
 
-        for tbl_idx, tbl in enumerate(document.tables):
-            rows_data = []
+        for tbl in document.tables:
+            rows = []
             for row in tbl.rows:
                 cells = [c.text.replace("\x00", "").strip() for c in row.cells]
-                rows_data.append(" | ".join(cells))
-            table_text = "\n".join(rows_data)
+                rows.append(" | ".join(cells))
+            table_text = "\n".join(rows)
             if len(table_text) >= cls.MIN_CHARS:
-                raw.append(_RawChunk(
-                    table_text, 1, "table",
-                    meta={
-                        "rows":      len(tbl.rows),
-                        "cols":      len(tbl.columns),
-                        "table_idx": tbl_idx,
-                    }
-                ))
+                raw.append(_RawChunk(table_text, 1, "table"))
 
         return cls._merge(raw)
 
@@ -262,41 +210,34 @@ class SemanticChunker:
         """
         Merge consecutive small paragraphs; prepend heading context.
         Headings, tables, and images are always kept as standalone chunks.
-        Metadata from the first block in a merged group is preserved.
         """
         merged: List[_RawChunk] = []
         current_heading = ""
         buffer_text = ""
         buffer_page = 1
-        buffer_meta: dict = {}
 
         def flush(page):
-            nonlocal buffer_text, buffer_meta
+            nonlocal buffer_text
             if buffer_text.strip():
                 text = f"[{current_heading}]\n{buffer_text}" if current_heading else buffer_text
-                meta = {**buffer_meta, "section": current_heading}
-                merged.append(_RawChunk(text, page, "paragraph", current_heading, meta))
+                merged.append(_RawChunk(text, page, "paragraph", current_heading))
             buffer_text = ""
-            buffer_meta = {}
 
         for chunk in raw:
             if chunk.chunk_type in ("table", "image"):
                 flush(chunk.page_number)
                 text = f"[{current_heading}]\n{chunk.text}" if current_heading and chunk.chunk_type == "table" else chunk.text
-                meta = {**chunk.meta, "section": current_heading}
-                merged.append(_RawChunk(text, chunk.page_number, chunk.chunk_type, current_heading, meta))
+                merged.append(_RawChunk(text, chunk.page_number, chunk.chunk_type, current_heading))
 
             elif chunk.chunk_type == "heading":
                 flush(chunk.page_number)
                 current_heading = chunk.text
-                meta = {**chunk.meta, "section": current_heading}
-                merged.append(_RawChunk(chunk.text, chunk.page_number, "heading", "", meta))
+                # headings also get their own chunk for direct retrieval
+                merged.append(_RawChunk(chunk.text, chunk.page_number, "heading"))
 
             else:  # paragraph / caption
                 if len(buffer_text) + len(chunk.text) > cls.MAX_CHARS:
                     flush(chunk.page_number)
-                if not buffer_text:
-                    buffer_meta = chunk.meta  # take meta from first block in group
                 buffer_text += (" " if buffer_text else "") + chunk.text
                 buffer_page = chunk.page_number
 
@@ -369,7 +310,6 @@ class IngestionService:
                     chunk_index  = i,
                     global_index = current_gi,
                     chunk_type   = rc.chunk_type,
-                    chunk_meta   = rc.meta,
                 )
             )
             current_gi += 1
@@ -422,7 +362,6 @@ class CustomRetriever:
                     Chunk.embedding,
                     Chunk.global_index,
                     Chunk.chunk_type,
-                    Chunk.chunk_meta,
                 )
                 .join(Document, Chunk.document_id == Document.id)
                 .filter(Chunk.document_id == doc_id)
@@ -448,7 +387,6 @@ class CustomRetriever:
                         "page_number":    r.page_number,
                         "global_index":   r.global_index,
                         "chunk_type":     getattr(r, "chunk_type", "paragraph"),
-                        "chunk_meta":     getattr(r, "chunk_meta", {}) or {},
                         "score":          float(scores[i]),
                     }
                 )

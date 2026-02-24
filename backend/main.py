@@ -64,6 +64,16 @@ app.mount("/media", StaticFiles(directory=str(config.MEDIA_ROOT)), name="media")
 ALLOWED_TYPES = {"pdf", "docx", "txt"}
 
 
+@app.on_event("startup")
+def on_startup():
+    """Create all DB tables if they don't exist yet (safe to run repeatedly)."""
+    from database import Base, engine
+    import db_models  # ensure all models are registered
+    logger.info("Creating database tables if not exist...")
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables ready ✅")
+
+
 # ---------------------------------------------------------------------------
 # Pydantic schemas
 # ---------------------------------------------------------------------------

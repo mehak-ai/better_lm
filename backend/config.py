@@ -18,9 +18,15 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_HOST     = os.getenv("DB_HOST", "localhost")
 DB_PORT     = os.getenv("DB_PORT", "5432")
 
-DATABASE_URL = (
-    f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-)
+# Railway provides DATABASE_URL directly — use it if available
+_raw_url = os.getenv("DATABASE_URL", "")
+if _raw_url:
+    # Railway uses postgres:// prefix; SQLAlchemy needs postgresql+psycopg2://
+    DATABASE_URL = _raw_url.replace("postgres://", "postgresql+psycopg2://", 1)
+else:
+    DATABASE_URL = (
+        f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    )
 
 # -------------------------------------------------------------------
 # Media / File storage

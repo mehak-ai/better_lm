@@ -1,0 +1,37 @@
+# Python virtual environment
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Environment variables (NEVER commit secrets)
+.env
+*.env
+
+# Uploaded files / media
+media/
+
+# Django artifacts (not needed for FastAPI)
+db.sqlite3
+staticfiles/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

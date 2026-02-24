@@ -6,9 +6,9 @@ python-multipart>=0.0.9
 # ── Database ────────────────────────────────────────────────────────
 sqlalchemy>=2.0.0
 psycopg2-binary>=2.9
-pgvector>=0.2.4
 
 # ── AI / LangChain ─────────────────────────────────────────────────
+# NOTE: torch is installed as CPU-only in the Dockerfile before this runs
 sentence-transformers>=2.2.2
 langchain==0.3.25
 langchain-core==0.3.59

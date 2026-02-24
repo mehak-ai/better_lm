@@ -1,10 +1,7 @@
 import { ChatSession, Message, Source } from "./types";
 
-// Use relative path on client (browser) to leverage Next.js proxy
-// Use full URL on server
-const BASE = typeof window !== "undefined"
-    ? "/api"
-    : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
+// Call the backend directly (works both server-side and in browser via CORS)
+const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
 // ---- Sessions ----
 
